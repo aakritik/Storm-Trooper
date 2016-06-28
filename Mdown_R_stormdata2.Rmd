@@ -1,0 +1,145 @@
+---
+title: "StormTrooper"
+author: "Aakriti K"
+date: "Wednesday, December 23, 2015"
+output: html_document
+---
+***
+The Saffir-Simpson Hurricane Wind Scale is a 1 to 5 rating based on a hurricane's sustained wind speed. This scale estimates potential property damage. Storms reaching Category 3 and higher are considered major \because of their potential for significant loss of life and damage. Category 1 and 2 storms are still dangerous, however, and require preventative measures.The dataset used here includes data for Tropical Storms that have occurred from the year 1997 through 2014 and have been rated on the Saffir-Simpson Hurricane Wind Scale
+
+### Data loading and data cleaning activities:
+```{r, warning=FALSE, message=FALSE, fig.align='center', fig.height=7, fig.width=8}
+library(RCurl)
+library(foreign)
+library(tidyr)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(lubridate)
+
+options(scipen = 999)
+url <- "https://raw.githubusercontent.com/ali-ce/datasets/master/Tropical-Storms/Storms.csv"
+storm.data<-getURL(url,ssl.verifypeer = FALSE)
+storm.data<-read.csv(textConnection(storm.data))
+
+#Removing data where there are NA values to enable more accurate analysis
+#e <- storm.data[complete.cases(storm.data), ]
+
+#Convert data to a dataframe and check the datatype using class()
+storm_data<-as.data.frame(storm.data)
+class(storm_data)
+
+#Cleaning data: Removing unrequired columns
+storm_data$Page.url<-NULL
+storm_data$ID<-NULL
+
+#Check to see what the matrix contains
+#head(x)
+
+#Check to see if conversion was successful by using class() function
+class(storm_data)
+
+#Remove the row names from the data frame
+row.names(storm_data)<-NULL
+#Replacing the column names to make them clearer for users
+colnames(storm_data)[which(names(storm_data) == "Wind..knots.")] <- "WindSpeed"
+colnames(storm_data)[which(names(storm_data) == "Month.s.")] <- "Months"
+colnames(storm_data)[which(names(storm_data) == "Duration..days.")] <- "DurationDays"
+
+#Check new column names
+names(storm_data)
+
+#Getting month from the Start Date of storm
+storm_data$month <- month(storm_data$Start.Date)
+```
+
+### Generating plots to study the relationship between variables 
+```{r, warning=FALSE, message=FALSE, fig.align='center', fig.height=7, fig.width=8}
+#Creating a new column called monthnames to show which month we are considering 
+#in our analysis
+storm_data$monthnames <- rep(NA,nrow(storm_data))
+storm_data[storm_data$month==1,][,"monthnames"] <- "Jan"
+storm_data[storm_data$month==2,][,"monthnames"] <- "Feb"
+storm_data[storm_data$month==3,][,"monthnames"] <- "Mar"
+storm_data[storm_data$month==4,][,"monthnames"] <- "Apr"
+storm_data[storm_data$month==5,][,"monthnames"] <- "May"
+storm_data[storm_data$month==6,][,"monthnames"] <- "Jun"
+storm_data[storm_data$month==7,][,"monthnames"] <- "Jul"
+storm_data[storm_data$month==8,][,"monthnames"] <- "Aug"
+storm_data[storm_data$month==9,][,"monthnames"] <- "Sep"
+storm_data[storm_data$month==10,][,"monthnames"] <- "Oct"
+storm_data[storm_data$month==11,][,"monthnames"] <- "Nov"
+storm_data[storm_data$month==12,][,"monthnames"] <- "Dec"
+
+storm_data$monthnames <- factor(storm_data$monthnames,levels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+
+storm_data$SaffirSimpsonScale<-cut(storm_data$Category..Saffir.Simpson.Scale., seq(1,6,1), right=FALSE, labels=c(1:5))
+
+#Creating a plot to visualize the Storm Duration and collective Wind Speed per month 
+#which helps us in looking for a pattern
+ggplot(storm_data,aes(WindSpeed,DurationDays))+
+  geom_point(aes(color=SaffirSimpsonScale),pch=16,cex=2,alpha=1/2)+
+  xlab("Wind Speed (In Knots)")+
+  ylab("Storm Duration(In Days)")+
+  facet_wrap(~monthnames)+
+  ggtitle("Monthly Trend of Storms")+
+  geom_smooth(size=1,se=FALSE, col="Black",alpha=1/2)+
+  theme_bw()
+```
+
+As seen in the plot above,storms tend to last longer in the months of August and September.As expected, the plot shows that the scale marks storms as 5*(most critical)* when the wind speed is at an average of **137knots or greater**.
+A significant observation is that although there are atleast *some* storms throughout the year,the most critical storms (i.e: Saffir Simpson scale>=3) occur from **July through October**.The points marked in grey are storms which were not considered for a Saffir Simpson rating but these are relevant observations due to the longevity of the storm.
+
+```{r , warning=FALSE, message=FALSE, fig.align='center', fig.height=7, fig.width=8}
+#Creating a stacked barplot to understand the type of storms by Region
+
+par(mar=c(10,3,3,1))
+par(xpd=TRUE)
+counts <- table(storm_data$Area, storm_data$Type)
+barplot(counts,
+  ylim=c(0,700),
+  xlim=c(0,100),
+  cex.axis=0.75,
+  las=2,cex.names = 0.65,xlab = "",
+  col=unique(as.factor(storm_data$Area)),
+  beside=FALSE,width=10)
+  legend("topright",pch = 20,
+       legend = rownames(counts),
+       title="Storm Regions",
+       fill=unique(as.factor(storm_data$Area)),
+       bty="n",
+       cex=0.65
+       )
+mtext("Types of Storms",side = 1,line = 7)
+#text(40,-630,"Types of Storms")
+```
+We can see above that Tropical Storms are the most widespread across all regions. Additionally, typhoons and super typhoons are marked to occur *only* in the **Western Pacific** region. Across regions, **Northern Indian** is the one with *least variety* as well as *least number* of storm occurrences.
+It can be noted that no region has recorded occurrences of **all** storm categories.
+
+```{r , warning=FALSE, message=FALSE, fig.align='center', fig.height=7, fig.width=8}
+#Set margins for plot
+par(mar=c(10,3,3,1))
+par(xpd=TRUE)
+
+#Replace the factor "" with the name "Other" to make charts user-friendly
+storm_data$Gender.of.Name <- sub("^$", "Other", storm_data$Gender.of.Name)
+
+#Creating a barplot to identify comparision of the Gender of name assigned to each storm
+counts <- table(storm_data$Gender.of.Name, storm_data$Area)
+barplot(counts,
+  ylim=c(0,250),
+  xlim=c(0,100),
+  cex.axis=0.75,
+  las=2,cex.names = 0.65,xlab = "",
+  col=unique(as.factor(storm_data$Gender.of.Name)),
+  beside=TRUE,width=3.6)
+  legend("topright",pch = 20,
+       legend = rownames(counts),
+       title="Gender of Storm Name",
+       fill=unique(as.factor(storm_data$Gender.of.Name)),
+       bty="n",
+       cex=0.65
+       )
+mtext("Storm Regions",side = 1,line = 7)
+```
+For the barplot generated above, we run a quick analysis of naming convention for storms across regions. It is evident that maximum storms are given gender-neutral names whereas there is a general trend of more male names than female names, with only Nothern and Southern Indian as well as Southern Pacific regions recording a greater count of the latter.In combination with the second plot, we can deduce that Western Pacific has the maximum count of names as well as maximum number of storms recorded.
